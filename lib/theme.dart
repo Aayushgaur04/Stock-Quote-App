@@ -9,7 +9,7 @@ class DarkTheme {
       textTheme: const TextTheme(
         displayLarge: TextStyle(
           color: DarkColors.accentColor, // Gold color for headings
-          fontSize: 42,
+          fontSize: 72,
           fontWeight: FontWeight.bold,
           fontFamily: 'Raleway'
         ),

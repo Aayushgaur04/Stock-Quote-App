@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'stock_provider.dart'; // Import the provider
+import 'colors.dart'; // Ensure your colors.dart is imported
 
 class WatchlistPage extends StatefulWidget {
   const WatchlistPage({super.key});
@@ -16,10 +17,12 @@ class WatchlistPageState extends State<WatchlistPage> {
 
     return Scaffold(
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
+          // Container with the secondary color background for the top section
+          Container(
+            color: DarkColors.secondaryColorLight, // Set the background color to secondary color
             padding: const EdgeInsets.only(top: 80, left: 15),
+            width: double.infinity,
             child: Text(
               'Your Watchlist',
               style: Theme.of(context).textTheme.displayLarge,
@@ -77,7 +80,7 @@ class WatchlistPageState extends State<WatchlistPage> {
                 );
               },
             ),
-          )
+          ),
         ],
       ),
     );

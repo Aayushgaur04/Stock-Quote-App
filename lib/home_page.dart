@@ -38,8 +38,28 @@ class MyHomePageState extends State<MyHomePage> {
           // Home Page (Stock Quote Page)
           Stack(
             children: [
+              Container(
+                color: DarkColors.secondaryColorLight, // Set background to secondary color
+                height: 220, // Adjust the height as needed to cover until the search bar
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 15),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Hi,',
+                      style: Theme.of(context).textTheme.displayLarge, // Text style remains unchanged
+                    ),
+                    const Text(
+                      'Welcome',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
               Positioned(
-                top: 220,
+                top: 250,
                 left: 15,
                 right: 15,
                 child: TextField(
@@ -54,18 +74,7 @@ class MyHomePageState extends State<MyHomePage> {
                 ),
               ),
               Positioned(
-                top: 80,
-                left: 15,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Hi, Aayush', style: Theme.of(context).textTheme.displayLarge),
-                    const Text('Welcome', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ),
-              Positioned(
-                top: 300,
+                top: 330,
                 left: 0,
                 right: 0,
                 bottom: 0,

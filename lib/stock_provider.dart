@@ -5,9 +5,10 @@ import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'config.dart';
 
 class StockProvider with ChangeNotifier {
-  final String apiKey = 'cr8a9uhr01qmmifq4e3gcr8a9uhr01qmmifq4e40';
+  final String apiKey = Config.apiKey;
   List<Map<String, dynamic>> stocks = [];
   List<Map<String, dynamic>> watchlist = [];
   List<Map<String, dynamic>> filteredStocks = [];
@@ -252,11 +253,16 @@ class StockProvider with ChangeNotifier {
         final metricResponse = await http.get(Uri.parse(metricUrl));
 
         double? marketCap;
-        double? peRatio;
+        double? epsTTM;
         if (metricResponse.statusCode == 200) {
           final metricData = jsonDecode(metricResponse.body);
           marketCap = metricData['metric']['marketCapitalization']?.toDouble();
-          peRatio = metricData['metric']['peRatio']?.toDouble();
+          epsTTM = metricData['metric']['epsTTM']?.toDouble();
+        }
+
+        double? peRatio;
+        if (epsTTM != null && epsTTM > 0) {
+          peRatio = price / epsTTM;
         }
 
         final stockData = {
@@ -266,7 +272,7 @@ class StockProvider with ChangeNotifier {
               ? '+$change (${percentChange.toStringAsFixed(2)}%)'
               : '$change (${percentChange.toStringAsFixed(2)}%)',
           'marketCap': marketCap != null ? formatNumber(marketCap) : 'N/A',
-          'peRatio': peRatio?.toStringAsFixed(2) ?? 'N/A',
+          'peRatio': peRatio != null ? peRatio.toStringAsFixed(2) : 'N/A',
         };
 
         _cache[symbol] = stockData;
