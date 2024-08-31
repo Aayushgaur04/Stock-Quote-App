@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
 class StockProvider with ChangeNotifier {
   final String apiKey = 'cr8a9uhr01qmmifq4e3gcr8a9uhr01qmmifq4e40';
@@ -14,6 +15,22 @@ class StockProvider with ChangeNotifier {
   Map<String, dynamic>? selectedStock;
   final Map<String, dynamic> _cache = {}; // Cache for stock data
   bool isConnected = true;
+  Timer? _timer;
+  final Duration _refreshInterval = const Duration(seconds: 120);
+
+  String formatNumber(double value) {
+    if (value >= 1e12) {
+      return '${(value / 1e12).toStringAsFixed(1)}T'; // Trillions
+    } else if (value >= 1e9) {
+      return '${(value / 1e9).toStringAsFixed(1)}B'; // Billions
+    } else if (value >= 1e6) {
+      return '${(value / 1e6).toStringAsFixed(1)}M'; // Millions
+    } else if (value >= 1e3) {
+      return '${(value / 1e3).toStringAsFixed(1)}K'; // Thousands
+    } else {
+      return value.toString(); // No formatting needed
+    }
+  }
 
 
   final Map<String, Map<String, dynamic>> stockDetails = {
@@ -112,6 +129,7 @@ class StockProvider with ChangeNotifier {
     });
 
     loadWatchlist(); // Load watchlist from shared preferences when app starts
+    startAutoRefresh();
   }
 
   Future<void> fetchStockData() async {
@@ -120,9 +138,6 @@ class StockProvider with ChangeNotifier {
       notifyListeners();
       return;
     }
-
-    // Clear the stocks list to avoid duplicates
-    //stocks.clear();
 
     final symbols = stockDetails.keys.toList();
     List<Future<void>> requests = [];
@@ -137,6 +152,27 @@ class StockProvider with ChangeNotifier {
     updateWatchlistWithFetchedData();
     isLoading = false;
     notifyListeners();
+  }
+
+  // Start the timer for auto-refreshing stock data
+  void startAutoRefresh() {
+    _timer = Timer.periodic(_refreshInterval, (timer) {
+      if (isConnected) {
+        fetchStockData(); // Re-fetch stock data periodically
+      }
+    });
+  }
+
+  // Stop the timer when necessary (for example, when the app is closed)
+  void stopAutoRefresh() {
+    _timer?.cancel();
+  }
+
+  // Ensure this is called when necessary to release the timer
+  @override
+  void dispose() {
+    stopAutoRefresh();
+    super.dispose();
   }
 
   // Method to save the watchlist to shared preferences
@@ -190,10 +226,8 @@ class StockProvider with ChangeNotifier {
 
   Future<void> _fetchStock(String symbol, String url, {bool isWatchlist = false}) async {
     if (_cache.containsKey(symbol)) {
-      // If cached, just update the stock info
       final cachedStock = _cache[symbol]!;
       if (isWatchlist) {
-        // Update the watchlist stock data if it's from watchlist
         int index = watchlist.indexWhere((stock) => stock['symbol'] == symbol);
         if (index != -1) {
           watchlist[index] = cachedStock;
@@ -207,11 +241,23 @@ class StockProvider with ChangeNotifier {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['c'] == null) return; // Handle invalid symbols
+        if (data['c'] == null) return;
 
         final double price = (data['c'] as num).toDouble();
         final double change = (data['d'] as num).toDouble();
         final double percentChange = (data['dp'] as num).toDouble();
+
+        // Fetch Market Cap and P/E Ratio
+        final metricUrl = 'https://finnhub.io/api/v1/stock/metric?symbol=$symbol&metric=all&token=$apiKey';
+        final metricResponse = await http.get(Uri.parse(metricUrl));
+
+        double? marketCap;
+        double? peRatio;
+        if (metricResponse.statusCode == 200) {
+          final metricData = jsonDecode(metricResponse.body);
+          marketCap = metricData['metric']['marketCapitalization']?.toDouble();
+          peRatio = metricData['metric']['peRatio']?.toDouble();
+        }
 
         final stockData = {
           'symbol': symbol,
@@ -219,17 +265,16 @@ class StockProvider with ChangeNotifier {
           'change': change > 0
               ? '+$change (${percentChange.toStringAsFixed(2)}%)'
               : '$change (${percentChange.toStringAsFixed(2)}%)',
+          'marketCap': marketCap != null ? formatNumber(marketCap) : 'N/A',
+          'peRatio': peRatio?.toStringAsFixed(2) ?? 'N/A',
         };
 
-        // Cache the stock data
         _cache[symbol] = stockData;
 
-        // Only add the stock if it doesn't already exist in the stocks list
         if (!stocks.any((stock) => stock['symbol'] == symbol)) {
           stocks.add(stockData);
         }
 
-        // Update watchlist if necessary
         if (isWatchlist) {
           int index = watchlist.indexWhere((stock) => stock['symbol'] == symbol);
           if (index != -1) {
@@ -316,11 +361,11 @@ class StockProvider with ChangeNotifier {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  const Row(
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Market Cap: \$1.2T', style: TextStyle(fontSize: 14)),
-                      Text('P/E Ratio: 35.6', style: TextStyle(fontSize: 14)),
+                      Text('Market Cap: ${stock['marketCap']}', style: const TextStyle(fontSize: 14)),
+                      Text('P/E Ratio: ${stock['peRatio']}', style: const TextStyle(fontSize: 14)),
                     ],
                   ),
                 ],
