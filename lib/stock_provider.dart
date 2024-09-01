@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'package:rxdart/rxdart.dart'; // For debouncing
 import 'config.dart';
 
 class StockProvider with ChangeNotifier {
@@ -18,7 +19,24 @@ class StockProvider with ChangeNotifier {
   final Map<String, dynamic> _cache = {}; // Cache for stock data
   bool isConnected = true;
   Timer? _timer;
-  //final Duration _refreshInterval = const Duration(seconds: 120);
+
+  StockProvider({http.Client? client}) : client = client ?? http.Client() {
+    // Debounce the connection change event
+    Connectivity().onConnectivityChanged
+        .debounceTime(const Duration(seconds: 2))
+        .listen((ConnectivityResult result) {
+      if (result == ConnectivityResult.none) {
+        isConnected = false;
+        notifyListeners();
+      } else {
+        isConnected = true;
+        fetchStockData();
+      }
+    });
+
+    loadWatchlist(); // Load watchlist from shared preferences when app starts
+    startAutoRefresh();
+  }
 
   String formatNumber(double value) {
     if (value >= 1e12) {
@@ -34,105 +52,28 @@ class StockProvider with ChangeNotifier {
     }
   }
 
-
-  final Map<String, Map<String, dynamic>> stockDetails = {
-    'AAPL': {
-      'name': 'Apple Inc.',
-      'image': 'assets/apple_logo.png',
-    },
-    'GOOGL': {
-      'name': 'Alphabet Inc.',
-      'image': 'assets/google_logo.png',
-    },
-    'AMZN': {
-      'name': 'Amazon.com Inc.',
-      'image': 'assets/amazon_logo.png',
-    },
-    'MSFT': {
-      'name': 'Microsoft Corporation',
-      'image': 'assets/microsoft_logo.png',
-    },
-    'TSLA': {
-      'name': 'Tesla, Inc.',
-      'image': 'assets/tesla_logo.png',
-    },
-    'META': {
-      'name': 'Meta Platforms, Inc.',
-      'image': 'assets/meta_logo.png',
-    },
-    'NFLX': {
-      'name': 'Netflix, Inc.',
-      'image': 'assets/netflix_logo.png',
-    },
-    'NVDA': {
-      'name': 'NVIDIA Corporation',
-      'image': 'assets/nvidia_logo.png',
-    },
-    'BA': {
-      'name': 'The Boeing Company',
-      'image': 'assets/boeing_logo.png',
-    },
-    'JPM': {
-      'name': 'JPMorgan Chase & Co.',
-      'image': 'assets/jpmorgan_logo.png',
-    },
-    'V': {
-      'name': 'Visa Inc.',
-      'image': 'assets/visa_logo.png',
-    },
-    'DIS': {
-      'name': 'The Walt Disney Company',
-      'image': 'assets/disney_logo.png',
-    },
-    'PYPL': {
-      'name': 'PayPal Holdings, Inc.',
-      'image': 'assets/paypal_logo.png',
-    },
-    'BABA': {
-      'name': 'Alibaba Group Holding Ltd.',
-      'image': 'assets/alibaba_logo.png',
-    },
-    'ORCL': {
-      'name': 'Oracle Corporation',
-      'image': 'assets/oracle_logo.png',
-    },
-    'INTC': {
-      'name': 'Intel Corporation',
-      'image': 'assets/intel_logo.png',
-    },
-    'CSCO': {
-      'name': 'Cisco Systems, Inc.',
-      'image': 'assets/cisco_logo.png',
-    },
-    'ADBE': {
-      'name': 'Adobe Inc.',
-      'image': 'assets/adobe_logo.png',
-    },
-    'NKE': {
-      'name': 'Nike, Inc.',
-      'image': 'assets/nike_logo.png',
-    },
-    'XOM': {
-      'name': 'Exxon Mobil Corporation',
-      'image': 'assets/exxon_logo.png',
-    },
+  final Map<String, Map<String, dynamic>> stockDetails = const {
+    'AAPL': {'name': 'Apple Inc.', 'image': 'assets/apple_logo.png'},
+    'GOOGL': {'name': 'Alphabet Inc.', 'image': 'assets/google_logo.png'},
+    'AMZN': {'name': 'Amazon.com Inc.', 'image': 'assets/amazon_logo.png'},
+    'MSFT': {'name': 'Microsoft Corporation', 'image': 'assets/microsoft_logo.png'},
+    'TSLA': {'name': 'Tesla, Inc.', 'image': 'assets/tesla_logo.png'},
+    'META': {'name': 'Meta Platforms, Inc.', 'image': 'assets/meta_logo.png'},
+    'NFLX': {'name': 'Netflix, Inc.', 'image': 'assets/netflix_logo.png'},
+    'NVDA': {'name': 'NVIDIA Corporation', 'image': 'assets/nvidia_logo.png'},
+    'BA': {'name': 'The Boeing Company', 'image': 'assets/boeing_logo.png'},
+    'JPM': {'name': 'JPMorgan Chase & Co.', 'image': 'assets/jpmorgan_logo.png'},
+    'V': {'name': 'Visa Inc.', 'image': 'assets/visa_logo.png'},
+    'DIS': {'name': 'The Walt Disney Company', 'image': 'assets/disney_logo.png'},
+    'PYPL': {'name': 'PayPal Holdings, Inc.', 'image': 'assets/paypal_logo.png'},
+    'BABA': {'name': 'Alibaba Group Holding Ltd.', 'image': 'assets/alibaba_logo.png'},
+    'ORCL': {'name': 'Oracle Corporation', 'image': 'assets/oracle_logo.png'},
+    'INTC': {'name': 'Intel Corporation', 'image': 'assets/intel_logo.png'},
+    'CSCO': {'name': 'Cisco Systems, Inc.', 'image': 'assets/cisco_logo.png'},
+    'ADBE': {'name': 'Adobe Inc.', 'image': 'assets/adobe_logo.png'},
+    'NKE': {'name': 'Nike, Inc.', 'image': 'assets/nike_logo.png'},
+    'XOM': {'name': 'Exxon Mobil Corporation', 'image': 'assets/exxon_logo.png'},
   };
-
-  StockProvider({http.Client? client}) : client = client ?? http.Client() {
-    // Listen to connectivity changes and load saved watchlist
-    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
-      if (result == ConnectivityResult.none) {
-        isConnected = false;
-        notifyListeners();
-      } else {
-        isConnected = true;
-        fetchStockData();
-      }
-    });
-
-    loadWatchlist(); // Load watchlist from shared preferences when app starts
-    startAutoRefresh();
-  }
 
   Future<void> fetchStockData() async {
     if (!isConnected) {
@@ -142,12 +83,10 @@ class StockProvider with ChangeNotifier {
     }
 
     final symbols = stockDetails.keys.toList();
-    List<Future<void>> requests = [];
-
-    for (String symbol in symbols) {
+    final requests = symbols.map((symbol) {
       final url = 'https://finnhub.io/api/v1/quote?symbol=$symbol&token=$apiKey';
-      requests.add(_fetchStock(symbol, url));
-    }
+      return _fetchStock(symbol, url);
+    }).toList();
 
     await Future.wait(requests);
     filteredStocks = stocks;
@@ -157,7 +96,7 @@ class StockProvider with ChangeNotifier {
   }
 
   void startAutoRefresh() {
-    if (const bool.fromEnvironment('dart.vm.product')) {
+    if (!const bool.fromEnvironment('dart.vm.product')) {
       // Only start the timer if not in a test environment
       _timer = Timer.periodic(const Duration(minutes: 2), (timer) {
         if (isConnected) {
@@ -167,22 +106,18 @@ class StockProvider with ChangeNotifier {
     }
   }
 
-  // Stop the timer when necessary (for example, when the app is closed)
   void stopAutoRefresh() {
     _timer?.cancel();
   }
 
-  // Ensure this is called when necessary to release the timer
   @override
   void dispose() {
     stopAutoRefresh();
     super.dispose();
   }
 
-  // Method to save the watchlist to shared preferences
   Future<void> saveWatchlist() async {
     final prefs = await SharedPreferences.getInstance();
-
     try {
       final watchlistData = watchlist.map((stock) => jsonEncode(stock)).toList();
       await prefs.setStringList('watchlist', watchlistData);
@@ -193,18 +128,14 @@ class StockProvider with ChangeNotifier {
     }
   }
 
-  // Method to load the watchlist from shared preferences and update stock data
   Future<void> loadWatchlist() async {
     final prefs = await SharedPreferences.getInstance();
     final savedWatchlist = prefs.getStringList('watchlist');
 
     if (savedWatchlist != null) {
-      // Safely decode the stored strings into maps
       try {
-        watchlist = savedWatchlist
-            .map((stock) => jsonDecode(stock) as Map<String, dynamic>)
-            .toList();
-        await refreshWatchlistData(); // Fetch latest data for watchlist stocks
+        watchlist = savedWatchlist.map((stock) => jsonDecode(stock) as Map<String, dynamic>).toList();
+        await refreshWatchlistData();
       } catch (e) {
         if (kDebugMode) {
           print('Error decoding watchlist: $e');
@@ -212,27 +143,25 @@ class StockProvider with ChangeNotifier {
       }
     }
 
-    notifyListeners(); // Notify UI to update after loading watchlist
+    notifyListeners();
   }
 
-  // Fetch latest data for all stocks in the watchlist
   Future<void> refreshWatchlistData() async {
-    List<Future<void>> requests = [];
-    for (var stock in watchlist) {
+    final requests = watchlist.map((stock) {
       final symbol = stock['symbol'];
       final url = 'https://finnhub.io/api/v1/quote?symbol=$symbol&token=$apiKey';
-      requests.add(_fetchStock(symbol, url, isWatchlist: true));
-    }
+      return _fetchStock(symbol, url, isWatchlist: true);
+    }).toList();
 
     await Future.wait(requests);
-    notifyListeners(); // Notify UI to update after fetching latest data
+    notifyListeners();
   }
 
   Future<void> _fetchStock(String symbol, String url, {bool isWatchlist = false}) async {
     if (_cache.containsKey(symbol)) {
       final cachedStock = _cache[symbol]!;
       if (isWatchlist) {
-        int index = watchlist.indexWhere((stock) => stock['symbol'] == symbol);
+        final index = watchlist.indexWhere((stock) => stock['symbol'] == symbol);
         if (index != -1) {
           watchlist[index] = cachedStock;
         }
@@ -241,8 +170,7 @@ class StockProvider with ChangeNotifier {
     }
 
     try {
-      final response = await http.get(Uri.parse(url));
-
+      final response = await client.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['c'] == null) return;
@@ -253,7 +181,7 @@ class StockProvider with ChangeNotifier {
 
         // Fetch Market Cap and P/E Ratio
         final metricUrl = 'https://finnhub.io/api/v1/stock/metric?symbol=$symbol&metric=all&token=$apiKey';
-        final metricResponse = await http.get(Uri.parse(metricUrl));
+        final metricResponse = await client.get(Uri.parse(metricUrl));
 
         double? marketCap;
         double? epsTTM;
@@ -285,7 +213,7 @@ class StockProvider with ChangeNotifier {
         }
 
         if (isWatchlist) {
-          int index = watchlist.indexWhere((stock) => stock['symbol'] == symbol);
+          final index = watchlist.indexWhere((stock) => stock['symbol'] == symbol);
           if (index != -1) {
             watchlist[index] = stockData;
           }
@@ -296,12 +224,6 @@ class StockProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Network error: $e');
     }
-  }
-
-  // Ensure this triggers when there are no network changes
-  void stopLoadingOnError() {
-    isLoading = false;
-    notifyListeners();
   }
 
   void filterStocks(String query) {
@@ -329,9 +251,7 @@ class StockProvider with ChangeNotifier {
         return Stack(
           children: [
             AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -356,17 +276,8 @@ class StockProvider with ChangeNotifier {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Price: \$${stock['price'].toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      Text(
-                        stock['change'],
-                        style: TextStyle(
-                          color: stock['change'].contains('+') ? Colors.green : Colors.red,
-                          fontSize: 14,
-                        ),
-                      ),
+                      Text('Price: \$${stock['price'].toStringAsFixed(2)}', style: const TextStyle(fontSize: 16)),
+                      Text(stock['change'], style: TextStyle(color: stock['change'].contains('+') ? Colors.green : Colors.red, fontSize: 14)),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -374,7 +285,7 @@ class StockProvider with ChangeNotifier {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Market Cap: ${stock['marketCap']}', style: const TextStyle(fontSize: 14)),
-                      const SizedBox(width: 20,),
+                      const SizedBox(width: 20),
                       Text('P/E Ratio: ${stock['peRatio']}', style: const TextStyle(fontSize: 14)),
                     ],
                   ),
@@ -387,7 +298,6 @@ class StockProvider with ChangeNotifier {
     );
   }
 
-  // Override the addToWatchlist and removeFromWatchlist methods to save watchlist
   void addToWatchlist(Map<String, dynamic> stock) {
     if (!watchlist.contains(stock)) {
       watchlist.add(stock);
@@ -403,13 +313,9 @@ class StockProvider with ChangeNotifier {
   }
 
   void updateWatchlistWithFetchedData() {
-    // Update the watchlist with the latest stock data after fetching
     watchlist = watchlist.map((item) {
       final symbol = item['symbol'];
-      return stocks.firstWhere(
-            (stock) => stock['symbol'] == symbol,
-        orElse: () => {},
-      );
+      return stocks.firstWhere((stock) => stock['symbol'] == symbol, orElse: () => {});
     }).where((stock) => stock.isNotEmpty).toList();
     notifyListeners();
   }

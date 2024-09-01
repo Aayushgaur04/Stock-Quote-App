@@ -19,29 +19,29 @@ class StockQuoteApp extends StatelessWidget {
           create: (context) => StockProvider(),
         ),
       ],
-      child: Consumer<StockProvider>(
-        builder: (context, stockProvider, _) {
-          // Fetch data when connected and loading for the first time
-          if (stockProvider.isConnected && stockProvider.isLoading) {
-            stockProvider.fetchStockData();
-          }
-
-          return MaterialApp(
-            title: 'Stock Quote App',
-            debugShowCheckedModeBanner: false,
-            darkTheme: DarkTheme.themeData,
-            themeMode: ThemeMode.dark,
-            home: Scaffold(
-              body: stockProvider.isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : stockProvider.isConnected
-                  ? const MyHomePage() // Show your main content
-                  : const Center(
-                child: Text('No internet connection'),
+      child: MaterialApp(
+        title: 'Stock Quote App',
+        debugShowCheckedModeBanner: false,
+        darkTheme: DarkTheme.themeData,
+        themeMode: ThemeMode.dark,
+        home: Consumer<StockProvider>(
+          builder: (context, stockProvider, _) {
+            return Scaffold(
+              body: Selector<StockProvider, bool>(
+                selector: (_, provider) => provider.isLoading,
+                builder: (_, isLoading, __) {
+                  return isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : stockProvider.isConnected
+                      ? const MyHomePage() // Show main content
+                      : const Center(
+                    child: Text('No internet connection'),
+                  );
+                },
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

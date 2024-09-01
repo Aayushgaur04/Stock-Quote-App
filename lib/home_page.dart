@@ -84,6 +84,7 @@ class MyHomePageState extends State<MyHomePage> {
                   builder: (context, provider, child) {
                     return ListView.builder(
                       itemCount: provider.filteredStocks.length,
+                      itemExtent: 80,
                       itemBuilder: (context, index) {
                         final stock = provider.filteredStocks[index];
                         final symbol = stock['symbol'];
@@ -116,9 +117,19 @@ class MyHomePageState extends State<MyHomePage> {
                           ),
                           onTap: () => provider.showStockDetails(context, stock, details!), // Select stock on tap
                           onLongPress: () {
-                            provider.addToWatchlist(stock); // Add to watchlist on long press
+                            provider.addToWatchlist(stock); // Add to watchlist
+                            ScaffoldMessenger.of(context).clearSnackBars(); // Clear existing snackbars
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('$symbol added to watchlist')),
+                              SnackBar(
+                                content: Text('$symbol added to watchlist'),
+                                action: SnackBarAction(
+                                  label: 'UNDO',
+                                  textColor: Colors.black,
+                                  onPressed: () {
+                                    provider.removeFromWatchlist(stock); // Remove from watchlist if UNDO is pressed
+                                  },
+                                ),
+                              ),
                             );
                           },
                         );
@@ -148,5 +159,11 @@ class MyHomePageState extends State<MyHomePage> {
         onTap: _onItemTapped,
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 }

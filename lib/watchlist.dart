@@ -13,8 +13,6 @@ class WatchlistPage extends StatefulWidget {
 class WatchlistPageState extends State<WatchlistPage> {
   @override
   Widget build(BuildContext context) {
-    final stockProvider = Provider.of<StockProvider>(context); // Access the provider
-
     return Scaffold(
       body: Column(
         children: [
@@ -29,52 +27,57 @@ class WatchlistPageState extends State<WatchlistPage> {
             ),
           ),
           Expanded(
-            child: stockProvider.watchlist.isEmpty
-                ? const Center(
-              child: Text('Your Watchlist is empty.'),
-            )
-                : ListView.builder(
-              itemCount: stockProvider.watchlist.length,
-              itemBuilder: (context, index) {
-                final stock = stockProvider.watchlist[index];
-                final symbol = stock['symbol'];
-                final details = stockProvider.stockDetails[symbol]; // Get name and image based on symbol
-
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: AssetImage(details?['image']),
-                    radius: 25,
-                  ),
-                  title: Text(
-                    symbol,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-                  ),
-                  subtitle: Text(
-                    details?['name'] ?? '', // Company name
-                    style: const TextStyle(fontSize: 14),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Price: \$${stock['price'].toStringAsFixed(2)}',
+            child: Consumer<StockProvider>(
+              builder: (context, stockProvider, child) {
+                return stockProvider.watchlist.isEmpty
+                    ? const Center(
+                  child: Text('Your Watchlist is empty.'),
+                )
+                    : ListView.builder(
+                  itemCount: stockProvider.watchlist.length,
+                  itemExtent: 80.0,
+                  itemBuilder: (context, index) {
+                    final stock = stockProvider.watchlist[index];
+                    final symbol = stock['symbol'];
+                    final details = stockProvider.stockDetails[symbol];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: AssetImage(details?['image']),
+                        radius: 25,
+                      ),
+                      title: Text(
+                        symbol,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                      ),
+                      subtitle: Text(
+                        details?['name'] ?? '', // Company name
                         style: const TextStyle(fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
-                      Text(
-                        stock['change'],
-                        style: TextStyle(
-                          color: stock['change'].contains('+') ? Colors.green : Colors.red,
-                          fontSize: 14,
-                        ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Price: \$${stock['price'].toStringAsFixed(2)}',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          Text(
+                            stock['change'],
+                            style: TextStyle(
+                              color: stock['change'].contains('+') ? Colors.green : Colors.red,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  onLongPress: () {
-                    stockProvider.removeFromWatchlist(stock); // Use provider to remove from watchlist
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${stock['symbol']} removed from watchlist')),
+                      onLongPress: () {
+                        stockProvider.removeFromWatchlist(stock); // Use provider to remove from watchlist
+                        ScaffoldMessenger.of(context).clearSnackBars(); // Clear existing snackbars
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('${stock['symbol']} removed from watchlist')),
+                        );
+                      },
                     );
                   },
                 );
