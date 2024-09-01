@@ -9,6 +9,7 @@ import 'config.dart';
 
 class StockProvider with ChangeNotifier {
   final String apiKey = Config.apiKey;
+  final http.Client client;
   List<Map<String, dynamic>> stocks = [];
   List<Map<String, dynamic>> watchlist = [];
   List<Map<String, dynamic>> filteredStocks = [];
@@ -17,7 +18,7 @@ class StockProvider with ChangeNotifier {
   final Map<String, dynamic> _cache = {}; // Cache for stock data
   bool isConnected = true;
   Timer? _timer;
-  final Duration _refreshInterval = const Duration(seconds: 120);
+  //final Duration _refreshInterval = const Duration(seconds: 120);
 
   String formatNumber(double value) {
     if (value >= 1e12) {
@@ -117,7 +118,7 @@ class StockProvider with ChangeNotifier {
     },
   };
 
-  StockProvider() {
+  StockProvider({http.Client? client}) : client = client ?? http.Client() {
     // Listen to connectivity changes and load saved watchlist
     Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
       if (result == ConnectivityResult.none) {
@@ -155,13 +156,15 @@ class StockProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Start the timer for auto-refreshing stock data
   void startAutoRefresh() {
-    _timer = Timer.periodic(_refreshInterval, (timer) {
-      if (isConnected) {
-        fetchStockData(); // Re-fetch stock data periodically
-      }
-    });
+    if (const bool.fromEnvironment('dart.vm.product')) {
+      // Only start the timer if not in a test environment
+      _timer = Timer.periodic(const Duration(minutes: 2), (timer) {
+        if (isConnected) {
+          fetchStockData(); // Re-fetch stock data periodically
+        }
+      });
+    }
   }
 
   // Stop the timer when necessary (for example, when the app is closed)
@@ -371,6 +374,7 @@ class StockProvider with ChangeNotifier {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Market Cap: ${stock['marketCap']}', style: const TextStyle(fontSize: 14)),
+                      const SizedBox(width: 20,),
                       Text('P/E Ratio: ${stock['peRatio']}', style: const TextStyle(fontSize: 14)),
                     ],
                   ),

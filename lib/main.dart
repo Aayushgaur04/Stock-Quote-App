@@ -13,13 +13,15 @@ class StockQuoteApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => StockProvider(),
-      child: Builder(
-        builder: (context) {
-          final stockProvider = Provider.of<StockProvider>(context);
-
-          // Fetch data when connected
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<StockProvider>(
+          create: (context) => StockProvider(),
+        ),
+      ],
+      child: Consumer<StockProvider>(
+        builder: (context, stockProvider, _) {
+          // Fetch data when connected and loading for the first time
           if (stockProvider.isConnected && stockProvider.isLoading) {
             stockProvider.fetchStockData();
           }
@@ -27,9 +29,8 @@ class StockQuoteApp extends StatelessWidget {
           return MaterialApp(
             title: 'Stock Quote App',
             debugShowCheckedModeBanner: false,
-            theme: LightTheme.themeData,
             darkTheme: DarkTheme.themeData,
-            themeMode: ThemeMode.system,
+            themeMode: ThemeMode.dark,
             home: Scaffold(
               body: stockProvider.isLoading
                   ? const Center(child: CircularProgressIndicator())
